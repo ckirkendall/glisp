@@ -35,6 +35,7 @@ type Cons struct {}
 type First struct {}
 type Rest struct {}
 type Print struct {}
+type PrintLn struct {}
 
 func fnError(args []interface{}) error {
 	return GLispError{"Invalid function def:" + fmt.Sprint(args)}
@@ -46,6 +47,18 @@ func wrongNumArgsError(call string) error {
 
 func invalidArgError(call string) error {
 	return GLispError{"Invalid arg error for call " + call}
+}
+
+func evalArgs(args []interface{}, env Environment) ([]interface{}, error){
+	vals := make([]interface{}, 0, 0)
+	for _, arg := range args {
+		val, err := Eval(arg, env)
+		if err != nil {
+			return nil, err
+		}
+		vals = append(vals, val)
+	}
+	return vals, nil
 }
 
 func decomposeFn(args []interface{}) (*parser.Ident, []parser.Ident, []interface{}, error) {
@@ -152,7 +165,11 @@ func (f Macro) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 	return Eval(tail, callerEnv)
 }
 
-func numArgs(args []interface{}) ([]parser.Number, error){
+func numArgs(args []interface{}, callerEnv Environment) ([]parser.Number, error){
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
 	nums := make([]parser.Number, 0, 0)
 	for _, arg := range args {
 		num, ok := arg.(parser.Number)
@@ -165,7 +182,7 @@ func numArgs(args []interface{}) ([]parser.Number, error){
 }
 
 func (f Add) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	nums, err := numArgs(args)
+	nums, err := numArgs(args, callerEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +194,7 @@ func (f Add) Apply(callerEnv Environment, args ...interface{}) (interface{}, err
 }
 
 func (f Minus) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	nums, err := numArgs(args)
+	nums, err := numArgs(args, callerEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +206,7 @@ func (f Minus) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 }
 
 func (f Mult) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	nums, err := numArgs(args)
+	nums, err := numArgs(args, callerEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +221,7 @@ func (f Mult) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 }
 
 func (f Div) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	nums, err := numArgs(args)
+	nums, err := numArgs(args, callerEnv)
 	if err != nil {
 		return nil, invalidArgError("Div")
 	}
@@ -219,6 +236,10 @@ func (f Div) Apply(callerEnv Environment, args ...interface{}) (interface{}, err
 }
 
 func (f Cons) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
 	if len(args) != 2 {
 		return nil, wrongNumArgsError("Cons")
 	}
@@ -232,6 +253,10 @@ func (f Cons) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 }
 
 func (f First) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
 	if len(args) != 1 {
 		return nil, wrongNumArgsError("First")
 	}
@@ -246,6 +271,10 @@ func (f First) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 }
 
 func (f Rest) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
 	if len(args) != 1 {
 		return nil, wrongNumArgsError("Rest")
 	}
@@ -260,12 +289,19 @@ func (f Rest) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 }
 
 func (f Print) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	var first = true
-	for _, arg := range args {
-		if !first {
-			fmt.Print(" ")
-		}
-		fmt.Print(arg)
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
 	}
-	return nil, nil
+	fmt.Print(args...)
+	return parser.Nill{}, nil
+}
+
+func (f PrintLn) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
+	fmt.Println(args...)
+	return parser.Nill{}, nil
 }

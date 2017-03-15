@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	const input = "(+ 1 2)"
+	const input = "(+ 1 2)(println \"test\" (* 2 3)) "
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	scanner.Split(parser.Tokenize)
 	// Count the words.
@@ -22,7 +22,11 @@ func main() {
 	ast := parser.BuildAst(metaTokens)
 	fmt.Println(ast)
 	env := interpreter.DefaultEnv()
-	val, err := interpreter.Eval(ast[0],env)
-	fmt.Println(val, err)
+	for _, sexpr := range ast {
+		val, err := interpreter.Eval(sexpr,env)
+		fmt.Println(val, err)
+	}
+
+
 
 }

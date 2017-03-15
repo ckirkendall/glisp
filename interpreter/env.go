@@ -40,5 +40,6 @@ func DefaultEnv() Environment {
 	PutEnv(&env, "first", First{})
 	PutEnv(&env, "rest", Rest{})
 	PutEnv(&env, "print", Print{})
+	PutEnv(&env, "println", PrintLn{})
 	return env
 }

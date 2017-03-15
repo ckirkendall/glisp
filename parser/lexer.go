@@ -2,6 +2,7 @@ package parser
 
 import (
 	"regexp"
+	"strings"
 )
 
 const (
@@ -34,7 +35,7 @@ func BuildMetaTokens (toks []string) (token []MetaToken) {
 	for _, tok := range toks {
 		switch {
 		case isStringTok(tok):
-			metaToks = append(metaToks, MetaToken{ STRING, tok })
+			metaToks = append(metaToks, MetaToken{ STRING, strings.Trim(tok,"\"") })
 		case isNumberTok(tok):
 			metaToks = append(metaToks, MetaToken{ NUMBER, tok })
 		case tok[0] == '(':
