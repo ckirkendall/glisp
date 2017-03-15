@@ -5,10 +5,11 @@ import (
 	"strings"
 	"fmt"
 	"github.com/ckirkendall/glisp/parser"
+	"github.com/ckirkendall/glisp/interpreter"
 )
 
 func main() {
-	const input = "(fn (test test2) (println \"fun\") (+ 1 1.02))"
+	const input = "(+ 1 2)"
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	scanner.Split(parser.Tokenize)
 	// Count the words.
@@ -20,5 +21,8 @@ func main() {
 	fmt.Println(metaTokens)
 	ast := parser.BuildAst(metaTokens)
 	fmt.Println(ast)
+	env := interpreter.DefaultEnv()
+	val, err := interpreter.Eval(ast[0],env)
+	fmt.Println(val, err)
 
 }

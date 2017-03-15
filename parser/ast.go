@@ -5,12 +5,14 @@ import (
 	"fmt"
 )
 
+type Nill struct {}
+
 type List struct {
 	Val []interface{}
 }
 
 func (l List) String() string {
-	return fmt.Sprint("List", l.Val)
+	return fmt.Sprint(l.Val)
 }
 
 type String struct {
@@ -18,7 +20,7 @@ type String struct {
 }
 
 func (l String) String() string {
-	return fmt.Sprint("String:", l.Val)
+	return fmt.Sprint("\"", l.Val, "\"")
 }
 
 type Number struct {
@@ -26,7 +28,7 @@ type Number struct {
 }
 
 func (l Number) String() string {
-	return fmt.Sprint("Number:", l.Val)
+	return fmt.Sprint(l.Val)
 }
 
 type Ident struct {
@@ -34,7 +36,7 @@ type Ident struct {
 }
 
 func (l Ident) String() string {
-	return fmt.Sprint("Ident:", l.Val)
+	return fmt.Sprint(l.Val)
 }
 
 func buildList(start int, tokens []MetaToken) (adv int, lst []interface{}){
