@@ -14,26 +14,37 @@ type Def struct {}
 type FnBuilder struct {}
 type Fn struct {
 	Env Environment
-	Ident string
 	Args []parser.Ident
 	Body []interface{}
+}
+
+func (l Fn) String() string {
+	return fmt.Sprint("(fn ...)")
 }
 
 type MacroBuilder struct {}
 type Macro struct {
 	Env Environment
-	Ident string
 	Args []parser.Ident
 	Body []interface{}
 }
+
+type If struct {}
+type Equal struct {}
+type Not struct {}
+type Quote struct {}
 
 type Add struct {}
 type Minus struct {}
 type Div struct {}
 type Mult struct {}
+
+type List struct {}
 type Cons struct {}
 type First struct {}
 type Rest struct {}
+type Empty struct {}
+
 type Print struct {}
 type PrintLn struct {}
 
@@ -61,27 +72,23 @@ func evalArgs(args []interface{}, env Environment) ([]interface{}, error){
 	return vals, nil
 }
 
-func decomposeFn(args []interface{}) (*parser.Ident, []parser.Ident, []interface{}, error) {
+func decomposeFn(args []interface{}) ([]parser.Ident, []interface{}, error) {
 	if len(args) < 2 {
-		return nil, nil, nil, fnError(args)
+		return nil, nil, fnError(args)
 	}
-	sym, sok := args[0].(parser.Ident)
-	if !sok {
-		return nil, nil, nil, fnError(args)
-	}
-	argLst, aok := args[1].(parser.List)
+	argLst, aok := args[0].(parser.List)
 	if !aok  {
-		return nil, nil, nil, fnError(args)
+		return nil, nil, fnError(args)
 	}
 	identArgs := make([]parser.Ident, 0, 0)
 	for i := 0; i < len(argLst.Val); i++ {
 		sid, ok := argLst.Val[0].(parser.Ident)
 		if !ok {
-			return nil, nil, nil, fnError(args)
+			return nil, nil, fnError(args)
 		}
 		identArgs = append(identArgs, sid)
 	}
-	return &sym, identArgs, args[2:], nil
+	return identArgs, args[1:], nil
 }
 
 func (f Def) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
@@ -94,18 +101,18 @@ func (f Def) Apply(callerEnv Environment, args ...interface{}) (interface{}, err
 	}
 	body, err := Eval(args[1], callerEnv)
 	if err != nil {
-		return nil, GLispError{"Unexpected error in def:" + sym.Val}
+		return nil, GLispError{"Unexpected error in def:" + sym.Val + " : " + err.Error()}
 	}
 	PutEnv(&callerEnv, sym.Val, body)
 	return body, nil
 }
 
 func (f FnBuilder) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	sym, identArgs, body, err := decomposeFn(args)
+	identArgs, body, err := decomposeFn(args)
 	if err != nil {
 		return nil, err
 	}
-	return Fn{callerEnv, sym.Val, identArgs, body}, nil
+	return Fn{callerEnv, identArgs, body}, nil
 
 }
 
@@ -116,31 +123,32 @@ func (f Fn) Apply(callerEnv Environment, args ...interface{}) (interface{}, erro
 	}
 	nenv := Environment{ make(map[string]interface{}), &f.Env }
 	for i := 0; i < len(args); i++ {
-		val, e := Eval(args[i], nenv)
+		val, e := Eval(args[i], callerEnv)
 		if e != nil {
-			err := GLispError{"Error evaluating args of " + f.Ident + " with " + fmt.Sprint(args) }
+			err := GLispError{"Error evaluating args " + fmt.Sprint(args) + ":" + e.Error()}
 			return parser.Nill{}, err
 		}
 		PutEnv(&nenv, f.Args[i].Val, val)
 	}
-	var tail interface{}
-	for _, el := range f.Body {
-		res, e := Eval(el, nenv)
+	for i := 0; i<len(f.Body); i++ {
+		if i == (len(f.Body) - 1) {
+			return Thunk{nenv,f.Body[i]}, nil
+		}
+		_, e := Eval(f.Body[i], nenv)
 		if e != nil {
-			err := GLispError{"Error evaluating body of " + f.Ident + " with " + fmt.Sprint(args) }
+			err := GLispError{"Error evaluating body of " + fmt.Sprint(args) }
 			return parser.Nill{}, err
 		}
-		tail = res
 	}
-	return tail, nil
+	return nil, GLispError{"EEEK how did we get here!"}
 }
 
 func (f MacroBuilder) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	sym, identArgs, body, err := decomposeFn(args)
+	identArgs, body, err := decomposeFn(args)
 	if err != nil {
 		return nil, err
 	}
-	return Macro{callerEnv, sym.Val, identArgs, body}, nil
+	return Macro{callerEnv, identArgs, body}, nil
 
 }
 
@@ -157,12 +165,78 @@ func (f Macro) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 	for _, el := range f.Body {
 		res, e := Eval(el, nenv)
 		if e != nil {
-			err := GLispError{"Error evaluating body of " + f.Ident + " with " + fmt.Sprint(args) }
+			err := GLispError{"Error evaluating body of " + fmt.Sprint(args) }
 			return parser.Nill{}, err
 		}
 		tail = res
 	}
 	return Eval(tail, callerEnv)
+}
+
+func (f If) Apply(callerEnv Environment, args...interface{}) (interface{}, error) {
+	if len(args) < 2 {
+		return nil, wrongNumArgsError("IF")
+	}
+	test := false
+	testSexp, err := Eval(args[0], callerEnv)
+	if err != nil {
+		return nil, err
+	}
+	tbool, ok := testSexp.(parser.Bool)
+	if !ok {
+		_, nok := testSexp.(parser.Nill)
+		if !nok {
+			test = true
+		}
+	}else{
+		test = tbool.Val
+	}
+	if test {
+		return Thunk{callerEnv, args[1]}, nil
+	}
+	if len(args) > 2 {
+		return Thunk{callerEnv, args[2]}, nil
+	}
+	return parser.Nill{}, nil
+}
+
+func (f Quote) Apply(callerEnv Environment, args...interface{}) (interface{}, error) {
+	if len(args) != 1 {
+		return nil, wrongNumArgsError("Quote")
+	}
+	return args[0], nil
+}
+
+func (f Equal) Apply(callerEnv Environment, args...interface{}) (interface{}, error) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
+	if len(args) <= 1 {
+		return nil, wrongNumArgsError("Equal")
+	}
+	for i := 1; i< len(args); i++ {
+		if args[i-1] != args[i] {
+			return parser.Bool{false}, nil
+		}
+	}
+	return parser.Bool{true}, nil
+}
+
+func (f Not) Apply(callerEnv Environment, args...interface{}) (interface{}, error) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
+	if len(args) != 1 {
+		return nil, wrongNumArgsError("Not")
+	}
+	val, ok := args[0].(parser.Bool)
+	if ok {
+		return parser.Bool{!val.Val}, nil
+	}
+	_, nok := args[0].(parser.Nill)
+	return parser.Bool{nok}, nil
 }
 
 func numArgs(args []interface{}, callerEnv Environment) ([]parser.Number, error){
@@ -198,8 +272,11 @@ func (f Minus) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 	if err != nil {
 		return nil, err
 	}
-	var res float64 = 0
-	for i := 0; i < len(nums); i++ {
+	if len(args) < 1 {
+		return nil, wrongNumArgsError("Minus")
+	}
+	var res float64 = nums[0].Val
+	for i := 1; i < len(nums); i++ {
 		res -= nums[i].Val
 	}
 	return parser.Number{ res }, nil
@@ -286,6 +363,25 @@ func (f Rest) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 		return lst, nil
 	}
 	return parser.List{ lst.Val[1:] }, nil
+}
+
+func (f Empty) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
+	if len(args) != 1 {
+		return nil, wrongNumArgsError("Empty")
+	}
+	lst, ok := args[0].(parser.List)
+	if !ok {
+		return nil, invalidArgError("Empty")
+	}
+	return parser.Bool{len(lst.Val) == 0}, nil
+}
+
+func (f List) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
+	return parser.List{args}, nil
 }
 
 func (f Print) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {

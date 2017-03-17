@@ -11,31 +11,40 @@ type List struct {
 	Val []interface{}
 }
 
-func (l List) String() string {
-	return fmt.Sprint(l.Val)
-}
-
 type String struct {
 	Val string
-}
-
-func (l String) String() string {
-	return fmt.Sprint("\"", l.Val, "\"")
 }
 
 type Number struct {
 	Val float64
 }
 
-func (l Number) String() string {
-	return fmt.Sprint(l.Val)
-}
-
 type Ident struct {
 	Val string
 }
 
+type Bool struct {
+	Val bool
+}
+
+
+func (l List) String() string {
+	return fmt.Sprint(l.Val)
+}
+
+func (l String) String() string {
+	return fmt.Sprint("\"", l.Val, "\"")
+}
+
+func (l Number) String() string {
+	return fmt.Sprint(l.Val)
+}
+
 func (l Ident) String() string {
+	return fmt.Sprint(l.Val)
+}
+
+func (l Bool) String() string {
 	return fmt.Sprint(l.Val)
 }
 
@@ -72,7 +81,14 @@ func BuildAst(tokens []MetaToken) []interface{} {
 			nval, _ := strconv.ParseFloat(tokens[i].Lit, 64)
 			ast = append(ast, Number{ nval })
 		case IDENT:
-			ast = append(ast, Ident{ tokens[i].Lit })
+			switch tokens[i].Lit {
+			case "true":
+				ast = append(ast,Bool{true})
+			case "false":
+				ast = append(ast,Bool{false})
+			default:
+				ast = append(ast, Ident{ tokens[i].Lit })
+			}
 
 		}
 	}
