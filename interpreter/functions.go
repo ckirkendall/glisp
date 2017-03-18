@@ -5,15 +5,14 @@ import (
 	"fmt"
 )
 
-
 type Sexp interface {
 	Apply(env Environment, args ...interface{}) (interface{}, error)
 }
 
-type Def struct {}
-type FnBuilder struct {}
+type Def struct{}
+type FnBuilder struct{}
 type Fn struct {
-	Env Environment
+	Env  Environment
 	Args []parser.Ident
 	Body []interface{}
 }
@@ -22,31 +21,31 @@ func (l Fn) String() string {
 	return fmt.Sprint("(fn ...)")
 }
 
-type MacroBuilder struct {}
+type MacroBuilder struct{}
 type Macro struct {
-	Env Environment
+	Env  Environment
 	Args []parser.Ident
 	Body []interface{}
 }
 
-type If struct {}
-type Equal struct {}
-type Not struct {}
-type Quote struct {}
+type If struct{}
+type Equal struct{}
+type Not struct{}
+type Quote struct{}
 
-type Add struct {}
-type Minus struct {}
-type Div struct {}
-type Mult struct {}
+type Add struct{}
+type Minus struct{}
+type Div struct{}
+type Mult struct{}
 
-type List struct {}
-type Cons struct {}
-type First struct {}
-type Rest struct {}
-type Empty struct {}
+type List struct{}
+type Cons struct{}
+type First struct{}
+type Rest struct{}
+type Empty struct{}
 
-type Print struct {}
-type PrintLn struct {}
+type Print struct{}
+type PrintLn struct{}
 
 func fnError(args []interface{}) error {
 	return GLispError{"Invalid function def:" + fmt.Sprint(args)}
@@ -60,7 +59,7 @@ func invalidArgError(call string) error {
 	return GLispError{"Invalid arg error for call " + call}
 }
 
-func evalArgs(args []interface{}, env Environment) ([]interface{}, error){
+func evalArgs(args []interface{}, env Environment) ([]interface{}, error) {
 	vals := make([]interface{}, 0, 0)
 	for _, arg := range args {
 		val, err := Eval(arg, env)
@@ -77,12 +76,12 @@ func decomposeFn(args []interface{}) ([]parser.Ident, []interface{}, error) {
 		return nil, nil, fnError(args)
 	}
 	argLst, aok := args[0].(parser.List)
-	if !aok  {
+	if !aok {
 		return nil, nil, fnError(args)
 	}
 	identArgs := make([]parser.Ident, 0, 0)
 	for i := 0; i < len(argLst.Val); i++ {
-		sid, ok := argLst.Val[0].(parser.Ident)
+		sid, ok := argLst.Val[i].(parser.Ident)
 		if !ok {
 			return nil, nil, fnError(args)
 		}
@@ -117,22 +116,29 @@ func (f FnBuilder) Apply(callerEnv Environment, args ...interface{}) (interface{
 }
 
 func (f Fn) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	if len(args) != len(f.Args) {
+	args, aerr := evalArgs(args, callerEnv)
+	if aerr != nil {
+		return nil, aerr
+	}
+	if len(args) < len(f.Args) {
 		err := wrongNumArgsError("Fn")
 		return parser.Nill{}, err
 	}
-	nenv := Environment{ make(map[string]interface{}), &f.Env }
-	for i := 0; i < len(args); i++ {
-		val, e := Eval(args[i], callerEnv)
-		if e != nil {
-			err := GLispError{"Error evaluating args " + fmt.Sprint(args) + ":" + e.Error()}
-			return parser.Nill{}, err
+	nenv := Environment{make(map[string]interface{}), &f.Env }
+	for i := 0; i < len(f.Args); i++ {
+		if f.Args[i].Val == "&" {
+			if len(f.Args) == i + 1 {
+				return nil, GLispError{"invalid function args & in wrong place"}
+			}
+			PutEnv(&nenv, f.Args[i+1].Val, parser.List{args[i:]})
+			break;
+		} else {
+			PutEnv(&nenv, f.Args[i].Val, args[i])
 		}
-		PutEnv(&nenv, f.Args[i].Val, val)
 	}
-	for i := 0; i<len(f.Body); i++ {
+	for i := 0; i < len(f.Body); i++ {
 		if i == (len(f.Body) - 1) {
-			return Thunk{nenv,f.Body[i]}, nil
+			return Thunk{nenv, f.Body[i]}, nil
 		}
 		_, e := Eval(f.Body[i], nenv)
 		if e != nil {
@@ -159,7 +165,15 @@ func (f Macro) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 	}
 	nenv := Environment{make(map[string]interface{}), &f.Env }
 	for i := 0; i < len(args); i++ {
-		PutEnv(&nenv, f.Args[i].Val, args[i])
+		if f.Args[i].Val == "&" {
+			if len(f.Args) == i + 1 {
+				return nil, GLispError{"invalid function args & in wrong place"}
+			}
+			PutEnv(&nenv, f.Args[i+1].Val, parser.List{args[i:]})
+			break;
+		} else {
+			PutEnv(&nenv, f.Args[i].Val, args[i])
+		}
 	}
 	var tail interface{}
 	for _, el := range f.Body {
@@ -188,7 +202,7 @@ func (f If) Apply(callerEnv Environment, args...interface{}) (interface{}, error
 		if !nok {
 			test = true
 		}
-	}else{
+	} else {
 		test = tbool.Val
 	}
 	if test {
@@ -215,8 +229,8 @@ func (f Equal) Apply(callerEnv Environment, args...interface{}) (interface{}, er
 	if len(args) <= 1 {
 		return nil, wrongNumArgsError("Equal")
 	}
-	for i := 1; i< len(args); i++ {
-		if args[i-1] != args[i] {
+	for i := 1; i < len(args); i++ {
+		if args[i - 1] != args[i] {
 			return parser.Bool{false}, nil
 		}
 	}
@@ -239,7 +253,7 @@ func (f Not) Apply(callerEnv Environment, args...interface{}) (interface{}, erro
 	return parser.Bool{nok}, nil
 }
 
-func numArgs(args []interface{}, callerEnv Environment) ([]parser.Number, error){
+func numArgs(args []interface{}, callerEnv Environment) ([]parser.Number, error) {
 	args, aerr := evalArgs(args, callerEnv)
 	if aerr != nil {
 		return nil, aerr
@@ -264,7 +278,7 @@ func (f Add) Apply(callerEnv Environment, args ...interface{}) (interface{}, err
 	for i := 0; i < len(nums); i++ {
 		res += nums[i].Val
 	}
-	return parser.Number{ res }, nil
+	return parser.Number{res }, nil
 }
 
 func (f Minus) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
@@ -279,7 +293,7 @@ func (f Minus) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 	for i := 1; i < len(nums); i++ {
 		res -= nums[i].Val
 	}
-	return parser.Number{ res }, nil
+	return parser.Number{res }, nil
 }
 
 func (f Mult) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
@@ -294,7 +308,7 @@ func (f Mult) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 	for i := 1; i < len(nums); i++ {
 		res *= nums[i].Val
 	}
-	return parser.Number{ res }, nil
+	return parser.Number{res }, nil
 }
 
 func (f Div) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
@@ -309,7 +323,7 @@ func (f Div) Apply(callerEnv Environment, args ...interface{}) (interface{}, err
 	for i := 1; i < len(nums); i++ {
 		res /= nums[i].Val
 	}
-	return parser.Number{ res }, nil
+	return parser.Number{res }, nil
 }
 
 func (f Cons) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
@@ -326,7 +340,7 @@ func (f Cons) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 		return nil, invalidArgError("Cons")
 	}
 
-	return parser.List{ append([]interface{}{el}, lst.Val)}, nil
+	return parser.List{append([]interface{}{el}, lst.Val)}, nil
 }
 
 func (f First) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
@@ -362,7 +376,7 @@ func (f Rest) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 	if len(lst.Val) == 0 {
 		return lst, nil
 	}
-	return parser.List{ lst.Val[1:] }, nil
+	return parser.List{lst.Val[1:] }, nil
 }
 
 func (f Empty) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
