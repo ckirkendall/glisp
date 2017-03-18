@@ -47,10 +47,10 @@ func main() {
 		"(tmp 1 2 3 4 5 6)" +
 		"(let (x 3 y 4) (+ x y))" +
 		"(let (x 1 y (quote (1 2 3)) w (map (fn (z) (+ z x)) y))" +
-	        "(println x)" +
-	        "(println y)" +
-		"(reduce (fn (a b) (+ a b)) 1 w))"
-	//"(odd? 9999998)"
+		"(println x)" +
+		"(println y)" +
+		"(println (reduce (fn (a b) (+ a b)) 1 w)))" +
+		"(odd? 9998)"
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	scanner.Split(parser.Tokenize)
 	// Count the words.

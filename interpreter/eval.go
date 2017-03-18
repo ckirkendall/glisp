@@ -36,6 +36,8 @@ func EvalTh(el interface{}, env Environment, returnThunk bool) (interface{}, err
 	switch el.(type){
 	case parser.Number, parser.String:
 		return el, nil
+	case parser.Bool:
+		return el, nil
 	case parser.Ident:
 		sym, _ := el.(parser.Ident)
 		return LookUp(sym.Val, &env)
