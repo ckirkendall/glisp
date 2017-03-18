@@ -29,7 +29,7 @@ type Bool struct {
 
 
 func (l List) String() string {
-	return fmt.Sprint(l.Val)
+	return fmt.Sprint("l", l.Val)
 }
 
 func (l String) String() string {

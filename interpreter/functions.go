@@ -3,6 +3,7 @@ package interpreter
 import (
 	"github.com/ckirkendall/glisp/parser"
 	"fmt"
+	"reflect"
 )
 
 type Sexp interface {
@@ -57,6 +58,16 @@ func wrongNumArgsError(call string) error {
 
 func invalidArgError(call string) error {
 	return GLispError{"Invalid arg error for call " + call}
+}
+
+func hasAmpsand(argList []parser.Ident) bool {
+	res := false
+	for _, arg := range argList {
+		if arg.Val == "&" {
+			return true
+		}
+	}
+	return res
 }
 
 func evalArgs(args []interface{}, env Environment) ([]interface{}, error) {
@@ -120,7 +131,7 @@ func (f Fn) Apply(callerEnv Environment, args ...interface{}) (interface{}, erro
 	if aerr != nil {
 		return nil, aerr
 	}
-	if len(args) < len(f.Args) {
+	if (len(args) < len(f.Args) && !hasAmpsand(f.Args)) || (len(args) < len(f.Args) - 2 && hasAmpsand(f.Args)) {
 		err := wrongNumArgsError("Fn")
 		return parser.Nill{}, err
 	}
@@ -130,7 +141,7 @@ func (f Fn) Apply(callerEnv Environment, args ...interface{}) (interface{}, erro
 			if len(f.Args) == i + 1 {
 				return nil, GLispError{"invalid function args & in wrong place"}
 			}
-			PutEnv(&nenv, f.Args[i+1].Val, parser.List{args[i:]})
+			PutEnv(&nenv, f.Args[i + 1].Val, parser.List{args[i:]})
 			break;
 		} else {
 			PutEnv(&nenv, f.Args[i].Val, args[i])
@@ -159,17 +170,17 @@ func (f MacroBuilder) Apply(callerEnv Environment, args ...interface{}) (interfa
 }
 
 func (f Macro) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
-	if len(args) != len(f.Args) {
+	if (len(args) < len(f.Args) && !hasAmpsand(f.Args)) || (len(args) < len(f.Args) - 2 && hasAmpsand(f.Args)) {
 		err := wrongNumArgsError("Macro")
 		return parser.Nill{}, err
 	}
 	nenv := Environment{make(map[string]interface{}), &f.Env }
-	for i := 0; i < len(args); i++ {
+	for i := 0; i < len(f.Args); i++ {
 		if f.Args[i].Val == "&" {
 			if len(f.Args) == i + 1 {
 				return nil, GLispError{"invalid function args & in wrong place"}
 			}
-			PutEnv(&nenv, f.Args[i+1].Val, parser.List{args[i:]})
+			PutEnv(&nenv, f.Args[i + 1].Val, parser.List{args[i:]})
 			break;
 		} else {
 			PutEnv(&nenv, f.Args[i].Val, args[i])
@@ -179,7 +190,7 @@ func (f Macro) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 	for _, el := range f.Body {
 		res, e := Eval(el, nenv)
 		if e != nil {
-			err := GLispError{"Error evaluating body of " + fmt.Sprint(args) }
+			err := GLispError{"Error evaluating body of " + fmt.Sprint(args) + " : " + e.Error() }
 			return parser.Nill{}, err
 		}
 		tail = res
@@ -340,7 +351,7 @@ func (f Cons) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 		return nil, invalidArgError("Cons")
 	}
 
-	return parser.List{append([]interface{}{el}, lst.Val)}, nil
+	return parser.List{append([]interface{}{el}, lst.Val...)}, nil
 }
 
 func (f First) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
@@ -352,7 +363,9 @@ func (f First) Apply(callerEnv Environment, args ...interface{}) (interface{}, e
 		return nil, wrongNumArgsError("First")
 	}
 	lst, ok := args[0].(parser.List)
-	if ok {
+	if !ok {
+		fmt.Println(reflect.TypeOf(args[0]))
+		fmt.Println(args[0])
 		return nil, invalidArgError("First")
 	}
 	if len(lst.Val) == 0 {
@@ -376,7 +389,7 @@ func (f Rest) Apply(callerEnv Environment, args ...interface{}) (interface{}, er
 	if len(lst.Val) == 0 {
 		return lst, nil
 	}
-	return parser.List{lst.Val[1:] }, nil
+	return parser.List{lst.Val[1:]}, nil
 }
 
 func (f Empty) Apply(callerEnv Environment, args ...interface{}) (interface{}, error) {
